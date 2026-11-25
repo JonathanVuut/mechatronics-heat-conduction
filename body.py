@@ -7,7 +7,7 @@ class Body:
             print("Error: Heat capacity must be greater than 0. Settin default to 1.")
             heat_capacity=1.0
         if temperature<0:
-            print("Error: Temperature must be greater than 0. Settin default to 0.")
+            print("Error: Temperature must be 0 or higher. Settin default to 0.")
             temperature=0.0
 
         self.mass = mass
