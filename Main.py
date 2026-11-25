@@ -7,15 +7,22 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication,
+    QAbstractItemView,
     QAbstractSpinBox,
+    QApplication,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFrame,
+    QFormLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSlider,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -172,6 +179,253 @@ class GraphWindow(QWidget):
         os.startfile(file_path)
 
 
+class MaterialWindow(QWidget):
+    MATERIALS = (
+        ("Copper", 385.00, "$9.20", "Heat exchangers, electrical wiring, busbars"),
+        ("Aluminum (6061)", 897.00, "$2.60", "Aerospace frames, heat sinks, automotive parts"),
+        ("Carbon Steel", 490.00, "$0.85", "Structural beams, pressure vessels, heavy machinery"),
+        ("Stainless Steel (304)", 500.00, "$3.40", "Chemical reactors, food processing, medical tools"),
+        ("Cast Iron", 460.00, "$0.75", "Engine blocks, brake rotors, furnace grates"),
+        ("Titanium (Ti-6Al-4V)", 526.00, "$35.00", "Turbine blades, aerospace fasteners, implants"),
+        ("Brass", 380.00, "$6.50", "Valves, bearings, marine fittings, radiators"),
+        ("Industrial Water", 4184.00, "$0.01", "Cooling loops, boilers, thermal energy storage"),
+    )
+
+    def __init__(self, main_window, target_body):
+        super().__init__(main_window, Qt.WindowType.Window)
+        self.main_window = main_window
+        self.target_body = target_body
+        self.setWindowTitle("The Foundry Archive — Material Codex")
+        self.setMinimumSize(760, 440)
+        self.resize(1000, 600)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        banner = QFrame()
+        banner.setObjectName("codex_banner")
+        banner_layout = QVBoxLayout(banner)
+        banner_layout.setContentsMargins(20, 16, 20, 16)
+        banner_layout.setSpacing(6)
+
+        emblem = QLabel("✦  THE FOUNDRY ARCHIVE  ✦")
+        emblem.setObjectName("codex_emblem")
+        emblem.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(emblem)
+
+        title = QLabel("Industrial Material Codex")
+        title.setObjectName("codex_title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(title)
+
+        subtitle = QLabel(
+            "Select an alloy or substance to load its thermal capacity into the forge"
+        )
+        subtitle.setObjectName("codex_subtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setWordWrap(True)
+        banner_layout.addWidget(subtitle)
+        layout.addWidget(banner)
+
+        self.material_table = QTableWidget(0, 4)
+        self.material_table.setObjectName("material_table")
+        self.material_table.setHorizontalHeaderLabels(
+            (
+                "Material",
+                "Heat Capacity (J/kg°C)",
+                "Price ($/kg)",
+                "Industrial Applications",
+            )
+        )
+        self.material_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.material_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.material_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.material_table.setAlternatingRowColors(True)
+        self.material_table.setWordWrap(True)
+        self.material_table.setShowGrid(False)
+        self.material_table.verticalHeader().setVisible(False)
+        self.material_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+
+        for material in (*self.MATERIALS, *self.main_window.custom_materials):
+            self._append_material_row(material)
+        self.material_table.resizeRowsToContents()
+        self.material_table.setMinimumHeight(220)
+        self.material_table.itemDoubleClicked.connect(self.apply_material)
+        layout.addWidget(self.material_table, stretch=1)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self.custom_material_button = QPushButton("Add Custom Material")
+        self.custom_material_button.setObjectName("add_custom_material_button")
+        self.custom_material_button.clicked.connect(self.add_custom_material)
+        actions.addWidget(self.custom_material_button)
+
+        self.apply_button = QPushButton("Apply Material")
+        self.apply_button.setObjectName("apply_material_button")
+        self.apply_button.setEnabled(False)
+        self.apply_button.clicked.connect(self.apply_material)
+        actions.addWidget(self.apply_button)
+        layout.addLayout(actions)
+        self.material_table.itemSelectionChanged.connect(self._selection_changed)
+        if self.main_window.custom_materials:
+            self.material_table.selectRow(self.material_table.rowCount() - 1)
+
+    def _append_material_row(self, material, select=False):
+        name, heat_capacity, price, applications = material
+        row = self.material_table.rowCount()
+        self.material_table.insertRow(row)
+        values = (name, f"{heat_capacity:.2f}", price, applications)
+        for column, value in enumerate(values):
+            item = QTableWidgetItem(value)
+            if column == 1:
+                item.setData(Qt.ItemDataRole.UserRole, heat_capacity)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            elif column == 2:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.material_table.setItem(row, column, item)
+
+        self.material_table.resizeRowsToContents()
+        if select:
+            self.material_table.selectRow(row)
+            self.material_table.scrollToItem(self.material_table.item(row, 0))
+
+    def _selection_changed(self):
+        self.apply_button.setEnabled(self.material_table.currentRow() >= 0)
+
+    def apply_material(self):
+        row = self.material_table.currentRow()
+        if row < 0:
+            return
+
+        material_name = self.material_table.item(row, 0).text()
+        heat_capacity = self.material_table.item(row, 1).data(
+            Qt.ItemDataRole.UserRole
+        )
+        if self.target_body == "left":
+            self.main_window.left_heat_capacity_spinbox.setValue(heat_capacity)
+            self.main_window.left_heading_label.setText(
+                f"BODY 01 / {material_name}"
+            )
+        else:
+            self.main_window.right_heat_capacity_spinbox.setValue(heat_capacity)
+            self.main_window.right_heading_label.setText(
+                f"BODY 02 / {material_name}"
+            )
+        self.close()
+
+    def add_custom_material(self):
+        dialog = QDialog(self)
+        dialog.setObjectName("custom_material_dialog")
+        dialog.setWindowTitle("Add Custom Material")
+        dialog.setMinimumWidth(520)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(18)
+
+        banner = QFrame()
+        banner.setObjectName("codex_banner")
+        banner_layout = QVBoxLayout(banner)
+        banner_layout.setContentsMargins(18, 14, 18, 14)
+        banner_layout.setSpacing(6)
+
+        emblem = QLabel("✦  FORGE ENTRY  ✦")
+        emblem.setObjectName("codex_emblem")
+        emblem.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(emblem)
+
+        title = QLabel("Add a Custom Material")
+        title.setObjectName("codex_title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(title)
+        layout.addWidget(banner)
+
+        form = QFormLayout()
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(14)
+
+        name_input = QLineEdit()
+        name_input.setObjectName("custom_material_name")
+        name_input.setPlaceholderText("e.g. Nickel Alloy")
+        name_label = QLabel("Material Name")
+        name_label.setObjectName("custom_field_label")
+        form.addRow(name_label, name_input)
+
+        capacity_input = QDoubleSpinBox()
+        capacity_input.setObjectName("custom_capacity_spinbox")
+        capacity_input.setRange(0.01, 10000.0)
+        capacity_input.setValue(500.0)
+        capacity_input.setDecimals(2)
+        capacity_input.setSuffix(" J/kg°C")
+        capacity_label = QLabel("Heat Capacity")
+        capacity_label.setObjectName("custom_field_label")
+        form.addRow(capacity_label, capacity_input)
+
+        price_input = QDoubleSpinBox()
+        price_input.setObjectName("custom_price_spinbox")
+        price_input.setRange(0.00, 10000.0)
+        price_input.setValue(5.0)
+        price_input.setDecimals(2)
+        price_input.setPrefix("$")
+        price_input.setSuffix(" /kg")
+        price_label = QLabel("Price")
+        price_label.setObjectName("custom_field_label")
+        form.addRow(price_label, price_input)
+
+        applications_input = QLineEdit()
+        applications_input.setObjectName("custom_material_applications")
+        applications_input.setPlaceholderText("Industrial applications")
+        applications_label = QLabel("Industrial Applications")
+        applications_label.setObjectName("custom_field_label")
+        form.addRow(applications_label, applications_input)
+        layout.addLayout(form)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        cancel_button = QPushButton("Cancel")
+        cancel_button.setObjectName("cancel_custom_material_button")
+        cancel_button.clicked.connect(dialog.reject)
+        actions.addWidget(cancel_button)
+
+        add_button = QPushButton("Add")
+        add_button.setObjectName("add_custom_material_confirm_button")
+        add_button.setEnabled(False)
+        add_button.clicked.connect(dialog.accept)
+        name_input.textChanged.connect(
+            lambda name: add_button.setEnabled(bool(name.strip()))
+        )
+        actions.addWidget(add_button)
+        layout.addLayout(actions)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        name = name_input.text().strip()
+        if not name:
+            return
+
+        material = (
+            name,
+            capacity_input.value(),
+            f"${price_input.value():.2f}",
+            applications_input.text().strip(),
+        )
+        self.main_window.custom_materials.append(material)
+        for material_window in self.main_window.material_windows.values():
+            if material_window is not self:
+                material_window._append_material_row(material, select=True)
+        self._append_material_row(material, select=True)
+
+
 class HeatTransfer(QWidget):
     def __init__(self):
         super().__init__()
@@ -183,6 +437,7 @@ class HeatTransfer(QWidget):
         self.body2_temp_history = []
         self.current_time = 0.0
         self.pulse_pos = 0.0
+        self.custom_materials = []
         self.body1 = None
         self.body2 = None
 
@@ -191,6 +446,7 @@ class HeatTransfer(QWidget):
 
         self.about_window = AboutWindow()
         self.graph_window = GraphWindow(self)
+        self.material_windows = {}
         self.setupUI()
 
     def setupUI(self):
@@ -249,6 +505,17 @@ class HeatTransfer(QWidget):
         heading_layout.addWidget(heading)
         panel_layout.addLayout(heading_layout)
 
+        material_button = QPushButton("Select Material")
+        material_button.setObjectName("material_button")
+        material_button.clicked.connect(lambda: self.open_material_window(side))
+        panel_layout.addWidget(material_button)
+        if side == "left":
+            self.left_heading_label = heading
+            self.left_material_button = material_button
+        else:
+            self.right_heading_label = heading
+            self.right_material_button = material_button
+
         panel_layout.addStretch()
 
         body_row = QHBoxLayout()
@@ -290,7 +557,7 @@ class HeatTransfer(QWidget):
         fields = (
             ("temperature", "Temp.", 0, 200, float(temperature), " °C", True),
             ("mass", "Mass", 0.01, 1000, 10.0, " kg", False),
-            ("heat_capacity", "H. Cap.", 0.01, 100, 0.40, " J/kg°C", False),
+            ("heat_capacity", "H. Cap.", 0.01, 10000.0, 0.40, " J/kg°C", False),
         )
         for field_name, label_text, minimum, maximum, value, suffix, read_only in fields:
             row = QHBoxLayout()
@@ -372,6 +639,11 @@ class HeatTransfer(QWidget):
         self.start_button.toggled.connect(self.start_stop_button_method)
         panel_layout.addWidget(self.start_button)
 
+        clear_button = QPushButton("Clear")
+        clear_button.setObjectName("clear_simulation_button")
+        clear_button.clicked.connect(self.clear_simulation)
+        panel_layout.addWidget(clear_button)
+
         graphs_button = QPushButton("Graphs")
         graphs_button.clicked.connect(self.open_graphs)
         panel_layout.addWidget(graphs_button)
@@ -380,6 +652,45 @@ class HeatTransfer(QWidget):
         about_button.clicked.connect(self.open_about)
         panel_layout.addWidget(about_button)
         return panel
+
+    def clear_simulation(self):
+        self.timer.stop()
+        self.start_button.setChecked(False)
+        self.start_button.setText("Start")
+        self.set_inputs_enabled(True)
+
+        self.time_history = []
+        self.body1_temp_history = []
+        self.body2_temp_history = []
+        self.current_time = 0.0
+        self.pulse_pos = 0.0
+
+        self.left_temperature_slider.setValue(200)
+        self.left_temperature_spinbox.setValue(200.0)
+        self.left_mass_spinbox.setValue(10.0)
+        self.left_heat_capacity_spinbox.setValue(0.40)
+        self.left_heading_label.setText("BODY 01  /  EMBER")
+
+        self.right_temperature_slider.setValue(0)
+        self.right_temperature_spinbox.setValue(0.0)
+        self.right_mass_spinbox.setValue(10.0)
+        self.right_heat_capacity_spinbox.setValue(0.40)
+        self.right_heading_label.setText("BODY 02  /  STEEL")
+
+        self.conductivity_spinbox.setValue(1.00)
+        self.body1 = Body(10.0, 0.40, 200.0)
+        self.body2 = Body(10.0, 0.40, 0.0)
+        self.connector.setStyleSheet("")
+        self.graph_window.clear_graph()
+
+    def open_material_window(self, target_body):
+        window = self.material_windows.get(target_body)
+        if window is None:
+            window = MaterialWindow(self, target_body)
+            self.material_windows[target_body] = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def update_body_color(self, box, temperature):
         red = int((temperature / 200.0) * 255)
@@ -407,6 +718,8 @@ class HeatTransfer(QWidget):
         self.left_heat_capacity_spinbox.setEnabled(enabled)
         self.right_heat_capacity_spinbox.setEnabled(enabled)
         self.conductivity_spinbox.setEnabled(enabled)
+        self.left_material_button.setEnabled(enabled)
+        self.right_material_button.setEnabled(enabled)
 
     def start_stop_button_method(self, checked):
         if checked:
@@ -460,8 +773,12 @@ class HeatTransfer(QWidget):
 
         self.left_temperature_spinbox.setValue(t1)
         self.right_temperature_spinbox.setValue(t2)
+        self.left_temperature_slider.blockSignals(True)
         self.left_temperature_slider.setValue(int(round(t1)))
+        self.left_temperature_slider.blockSignals(False)
+        self.right_temperature_slider.blockSignals(True)
         self.right_temperature_slider.setValue(int(round(t2)))
+        self.right_temperature_slider.blockSignals(False)
         self.update_body_color(self.left_body_box, t1)
         self.update_body_color(self.right_body_box, t2)
 

@@ -60,10 +60,30 @@ QLabel#github_link a {
 }
 
 QFrame#body_card,
-QFrame#emblem_banner {
+QFrame#emblem_banner,
+QFrame#codex_banner {
     background-color: #1a1821;
     border: 1px solid #2e293a;
     border-radius: 8px;
+}
+
+QLabel#codex_emblem {
+    color: #b8864b;
+    font-family: Georgia, "Palatino Linotype", serif;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+QLabel#codex_title {
+    color: #ece6d8;
+    font-family: Georgia, "Palatino Linotype", serif;
+    font-size: 26px;
+    font-weight: 600;
+}
+
+QLabel#codex_subtitle {
+    color: #a39c8e;
+    font-size: 13px;
 }
 
 QFrame#left_body_box {
@@ -93,6 +113,8 @@ QDoubleSpinBox#left_heat_capacity_spinbox,
 QDoubleSpinBox#right_mass_spinbox,
 QDoubleSpinBox#right_heat_capacity_spinbox,
 QDoubleSpinBox#numeric_input,
+QDoubleSpinBox#custom_capacity_spinbox,
+QDoubleSpinBox#custom_price_spinbox,
 QComboBox {
     background-color: #121116;
     border: 1px solid #3b3546;
@@ -125,6 +147,26 @@ QDoubleSpinBox#right_temperature_spinbox QLineEdit {
     background-color: transparent;
     color: #ece6d8;
     padding: 0 4px;
+}
+
+QLineEdit#custom_material_name,
+QLineEdit#custom_material_applications {
+    background-color: #121116;
+    border: 1px solid #3b3546;
+    border-radius: 4px;
+    color: #ece6d8;
+    min-height: 30px;
+    padding: 3px 8px;
+    selection-background-color: #9e3b33;
+}
+
+QLineEdit#custom_material_name:focus,
+QLineEdit#custom_material_applications:focus {
+    border-color: #b8864b;
+}
+
+QLabel#custom_field_label {
+    color: #a39c8e;
 }
 
 QComboBox QAbstractItemView {
@@ -162,6 +204,95 @@ QPushButton#start_button {
 QPushButton#start_button:checked {
     background-color: #3a282a;
     border-color: #b8864b;
+}
+
+QPushButton#clear_simulation_button {
+    border-color: #6f4939;
+}
+
+QPushButton#clear_simulation_button:hover {
+    background-color: #302a34;
+    border-color: #9e3b33;
+}
+
+QPushButton#material_button,
+QPushButton#apply_material_button,
+QPushButton#add_custom_material_button,
+QPushButton#add_custom_material_confirm_button {
+    background-color: #24212b;
+    border: 1px solid #6f4939;
+    color: #ece6d8;
+    font-weight: 600;
+    min-height: 32px;
+}
+
+QPushButton#material_button:hover,
+QPushButton#apply_material_button:hover,
+QPushButton#add_custom_material_button:hover,
+QPushButton#add_custom_material_confirm_button:hover {
+    background-color: #302a34;
+    border-color: #b8864b;
+}
+
+QPushButton#add_custom_material_confirm_button {
+    background-color: #6f302d;
+    border-color: #9e3b33;
+}
+
+QPushButton#cancel_custom_material_button {
+    background-color: #24212b;
+    border: 1px solid #494252;
+    color: #ece6d8;
+    min-height: 32px;
+    padding: 4px 12px;
+}
+
+QPushButton#apply_material_button:disabled {
+    background-color: #1a1821;
+    border-color: #3b3546;
+    color: #68616a;
+}
+
+QTableWidget#material_table {
+    alternate-background-color: #1a1821;
+    background-color: #121116;
+    border: 1px solid #2e293a;
+    border-radius: 6px;
+    color: #ece6d8;
+    gridline-color: #2e293a;
+    selection-background-color: #6f302d;
+    selection-color: #ece6d8;
+}
+
+QTableWidget#material_table::item {
+    background-color: transparent;
+    border-bottom: 1px solid #2e293a;
+    padding: 6px 8px;
+}
+
+QTableWidget#material_table::item:alternate {
+    background-color: #1a1821;
+}
+
+QTableWidget#material_table::item:selected {
+    background-color: #6f302d;
+    border: 1px solid #b8864b;
+    color: #ece6d8;
+}
+
+QHeaderView::section {
+    background-color: #24212b;
+    border: 0;
+    border-bottom: 1px solid #b8864b;
+    color: #b8864b;
+    font-weight: 600;
+    padding: 8px;
+}
+
+QTableCornerButton::section {
+    background-color: #24212b;
+    border: 0;
+    border-bottom: 1px solid #b8864b;
 }
 
 QSlider::groove:vertical {
