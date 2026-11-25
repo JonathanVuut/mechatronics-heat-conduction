@@ -182,6 +182,7 @@ class HeatTransfer(QWidget):
         self.body1_temp_history = []
         self.body2_temp_history = []
         self.current_time = 0.0
+        self.pulse_pos = 0.0
         self.body1 = None
         self.body2 = None
 
@@ -356,12 +357,12 @@ class HeatTransfer(QWidget):
         )
 
         panel_layout.addStretch(1)
-        connector = QFrame()
-        connector.setObjectName("connector_bar")
-        connector.setFixedHeight(10)
+        self.connector = QFrame()
+        self.connector.setObjectName("connector_bar")
+        self.connector.setFixedHeight(10)
         connector_layout = QHBoxLayout()
         connector_layout.setContentsMargins(20, 0, 20, 0)
-        connector_layout.addWidget(connector)
+        connector_layout.addWidget(self.connector)
         panel_layout.addLayout(connector_layout)
         panel_layout.addStretch(2)
 
@@ -410,6 +411,7 @@ class HeatTransfer(QWidget):
     def start_stop_button_method(self, checked):
         if checked:
             self.start_button.setText("Stop")
+            self.pulse_pos = 0.0
             self.time_history = []
             self.body1_temp_history = []
             self.body2_temp_history = []
@@ -435,6 +437,7 @@ class HeatTransfer(QWidget):
         else:
             self.timer.stop()
             self.start_button.setText("Start")
+            self.connector.setStyleSheet("")
             self.set_inputs_enabled(True)
 
     def timer_method(self):
@@ -462,6 +465,33 @@ class HeatTransfer(QWidget):
         self.update_body_color(self.left_body_box, t1)
         self.update_body_color(self.right_body_box, t2)
 
+        temperature_difference = abs(t1 - t2)
+        self.pulse_pos = (self.pulse_pos + 0.05) % 1.0
+        pulse_position = self.pulse_pos
+        trail_start = max(0.0, pulse_position - 0.12)
+        trail_end = min(1.0, pulse_position + 0.12)
+        opacity = int(min(temperature_difference / 200.0, 1.0) * 255)
+        gradient_x1, gradient_x2 = (0, 1) if t1 >= t2 else (1, 0)
+        iron_color = "#68616a"
+        pulse_color = (
+            "#ff7b29"
+            if opacity == 255
+            else f"rgba(255, 123, 41, {opacity})"
+        )
+        self.connector.setStyleSheet(
+            "QFrame#connector_bar {"
+            f"background: qlineargradient(x1: {gradient_x1}, y1: 0, "
+            f"x2: {gradient_x2}, y2: 0, stop: 0 {iron_color}, "
+            f"stop: {trail_start:.3f} {iron_color}, "
+            f"stop: {pulse_position:.3f} {pulse_color}, "
+            f"stop: {trail_end:.3f} {iron_color}, "
+            f"stop: 1 {iron_color});"
+            "border: 1px solid #8b765d;"
+            "border-radius: 4px;"
+            "}"
+        )
+        if temperature_difference < 0.05:
+            self.start_button.setChecked(False)
     
 
     def open_graphs(self):
