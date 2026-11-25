@@ -1,4 +1,7 @@
+from Body import Body
 from pathlib import Path
+import csv
+import os
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -120,13 +123,53 @@ class GraphWindow(QWidget):
         layout.addLayout(controls)
 
     def draw_graph(self):
-        pass
+        times = self.main_window.time_history
+        if not times:
+            return
+
+        selected = self.body_selector.currentText()
+        if selected == "Body 1":
+            temps = self.main_window.body1_temp_history
+            self.axes.plot(times, temps, color="#e74c3c", linewidth=2, label="Body 1")
+        else:
+            temps = self.main_window.body2_temp_history
+            self.axes.plot(times, temps, color="#3498db", linewidth=2, label="Body 2")
+
+        self.axes.set_xlim(0, max(times))
+        self.axes.set_ylim(0, 210)
+        self.axes.legend(facecolor="#1a1821", edgecolor="#2e293a", labelcolor="#ece6d8")
+        self.canvas.draw()
 
     def clear_graph(self):
-        pass
+        self.axes.clear()
+        self.axes.set_facecolor("#121116")
+        self.axes.set_xlabel("Time (s)", color="#a39c8e")
+        self.axes.set_ylabel("Temperature (°C)", color="#a39c8e")
+        self.axes.set_xlim(0, 1)
+        self.axes.set_ylim(0, 1)
+        self.axes.tick_params(colors="#a39c8e")
+        self.axes.grid(color="#2e293a", linewidth=0.7, alpha=0.7)
+        self.axes.spines["top"].set_visible(False)
+        self.axes.spines["right"].set_visible(False)
+        for spine in ("left", "bottom"):
+            self.axes.spines[spine].set_color("#5c5365")
+        self.canvas.draw()
 
     def export_csv(self):
-        pass
+        times = self.main_window.time_history
+        t1_list = self.main_window.body1_temp_history
+        t2_list = self.main_window.body2_temp_history
+        if not times:
+            return
+
+        file_path = Path(__file__).with_name("heat_transfer_data.csv")
+        with open(file_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Time (s)", "Body 1 Temperature (C)", "Body 2 Temperature (C)"])
+            for i in range(len(times)):
+                writer.writerow([round(times[i], 2), round(t1_list[i], 4), round(t2_list[i], 4)])
+
+        os.startfile(file_path)
 
 
 class HeatTransfer(QWidget):
@@ -188,6 +231,8 @@ class HeatTransfer(QWidget):
             stretch=1,
         )
         layout.addLayout(panels, stretch=1)
+        self.left_temperature_changed()
+        self.right_temperature_changed()
 
     def _create_body_panel(self, side, title, box_name, temperature, on_change):
         panel = QFrame()
@@ -222,10 +267,15 @@ class HeatTransfer(QWidget):
         body_box.setFixedHeight(120)
         body_box.setMinimumWidth(100)
 
+        
         if side == "left":
+            self.left_temperature_slider = slider
+            self.left_body_box = body_box
             body_row.addWidget(slider)
             body_row.addWidget(body_box, stretch=1)
         else:
+            self.right_temperature_slider = slider
+            self.right_body_box = body_box
             body_row.addWidget(body_box, stretch=1)
             body_row.addWidget(slider)
         panel_layout.addLayout(body_row)
@@ -260,7 +310,18 @@ class HeatTransfer(QWidget):
             row.addWidget(label)
             row.addWidget(spin_box, stretch=1)
             fields_layout.addLayout(row)
-
+            if side == "left" and field_name == "temperature":
+                self.left_temperature_spinbox = spin_box
+            elif side == "left" and field_name == "mass":
+                self.left_mass_spinbox = spin_box
+            elif side == "left" and field_name == "heat_capacity":
+                self.left_heat_capacity_spinbox = spin_box
+            elif side == "right" and field_name == "temperature":
+                self.right_temperature_spinbox = spin_box
+            elif side == "right" and field_name == "mass":
+                self.right_mass_spinbox = spin_box
+            elif side == "right" and field_name == "heat_capacity":
+                self.right_heat_capacity_spinbox = spin_box
         panel_layout.addLayout(fields_layout)
         return panel
 
@@ -319,17 +380,89 @@ class HeatTransfer(QWidget):
         panel_layout.addWidget(about_button)
         return panel
 
+    def update_body_color(self, box, temperature):
+        red = int((temperature / 200.0) * 255)
+        if red > 255:
+            red = 255
+        if red < 0:
+            red = 0
+        box.setStyleSheet(f"background-color: rgb({red}, 30, 35);")
+
     def left_temperature_changed(self):
-        pass
+        temp = self.left_temperature_slider.value()
+        self.left_temperature_spinbox.setValue(temp)
+        self.update_body_color(self.left_body_box, temp)
 
     def right_temperature_changed(self):
-        pass
+        temp = self.right_temperature_slider.value()
+        self.right_temperature_spinbox.setValue(temp)
+        self.update_body_color(self.right_body_box, temp)
+
+    def set_inputs_enabled(self, enabled):
+        self.left_temperature_slider.setEnabled(enabled)
+        self.right_temperature_slider.setEnabled(enabled)
+        self.left_mass_spinbox.setEnabled(enabled)
+        self.right_mass_spinbox.setEnabled(enabled)
+        self.left_heat_capacity_spinbox.setEnabled(enabled)
+        self.right_heat_capacity_spinbox.setEnabled(enabled)
+        self.conductivity_spinbox.setEnabled(enabled)
 
     def start_stop_button_method(self, checked):
-        pass
+        if checked:
+            self.start_button.setText("Stop")
+            self.time_history = []
+            self.body1_temp_history = []
+            self.body2_temp_history = []
+            self.current_time = 0.0
+
+            self.body1 = Body(
+                self.left_mass_spinbox.value(),
+                self.left_heat_capacity_spinbox.value(),
+                self.left_temperature_spinbox.value(),
+            )
+            self.body2 = Body(
+                self.right_mass_spinbox.value(),
+                self.right_heat_capacity_spinbox.value(),
+                self.right_temperature_spinbox.value(),
+            )
+
+            self.time_history.append(self.current_time)
+            self.body1_temp_history.append(self.body1.temperature)
+            self.body2_temp_history.append(self.body2.temperature)
+
+            self.set_inputs_enabled(False)
+            self.timer.start(100)
+        else:
+            self.timer.stop()
+            self.start_button.setText("Start")
+            self.set_inputs_enabled(True)
 
     def timer_method(self):
-        pass
+        dt = 0.1
+        conductivity = self.conductivity_spinbox.value()
+
+        i1 = conductivity * (self.body2.temperature - self.body1.temperature)
+        i2 = conductivity * (self.body1.temperature - self.body2.temperature)
+
+        q1 = i1 * dt
+        q2 = i2 * dt
+
+        t1 = self.body1.add_heat(q1)
+        t2 = self.body2.add_heat(q2)
+
+        self.current_time += dt
+        self.time_history.append(self.current_time)
+        self.body1_temp_history.append(t1)
+        self.body2_temp_history.append(t2)
+
+        self.left_temperature_spinbox.setValue(t1)
+        self.right_temperature_spinbox.setValue(t2)
+        self.left_temperature_slider.setValue(int(round(t1)))
+        self.right_temperature_slider.setValue(int(round(t2)))
+        self.update_body_color(self.left_body_box, t1)
+        self.update_body_color(self.right_body_box, t2)
+
+    
 
     def open_graphs(self):
         self.graph_window.show()
